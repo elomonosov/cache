@@ -1,7 +1,7 @@
 package ru.elomonosov.cache;
 
 public class TestCacheData implements Cacheable {
-    private long id = 0;
+    private long id;
 
     private String object = null;
 
