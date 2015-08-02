@@ -1,6 +1,5 @@
 package ru.elomonosov.level;
 
-import ru.elomonosov.cache.CacheStrategy;
 import ru.elomonosov.cache.Cacheable;
 
 public interface CacheLevel {
@@ -9,17 +8,11 @@ public interface CacheLevel {
 
     Cacheable get(long id) throws CacheLevelException;
 
-    Cacheable get(CacheStrategy cacheStrategy) throws CacheLevelException;
-
-    boolean remove(long id) throws CacheLevelException;
-
-    boolean remove(CacheStrategy cacheStrategy) throws CacheLevelException;
-
-    boolean remove(Cacheable cacheable) throws CacheLevelException;
+    Cacheable getByStrategy() throws CacheLevelException;
 
     Cacheable pull(long id) throws CacheLevelException;
 
-    Cacheable pull(CacheStrategy cacheStrategy) throws CacheLevelException;
+    Cacheable pullByStrategy() throws CacheLevelException;
 
     int size() throws CacheLevelException;
 

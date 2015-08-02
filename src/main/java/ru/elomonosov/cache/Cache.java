@@ -2,7 +2,8 @@ package ru.elomonosov.cache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.elomonosov.level.*;
+import ru.elomonosov.level.CacheLevel;
+import ru.elomonosov.level.CacheLevelException;
 import ru.elomonosov.util.ClassNameUtil;
 
 import java.util.List;
@@ -17,28 +18,45 @@ public final class Cache {
     /**
      * Constructs an empty cache with the specified displacement algorithm and levels.
      *
-     * @param cacheStrategy displacement algorithm.
+     * @param cacheStrategy  displacement algorithm.
      * @param cacheLevelList list of cache levels, sorted from first to last.
      */
-    protected Cache(CacheStrategy cacheStrategy, List<CacheLevel> cacheLevelList){
+    protected Cache(CacheStrategy cacheStrategy, List<CacheLevel> cacheLevelList) {
         this.cacheStrategy = cacheStrategy;
         this.cacheLevelList = cacheLevelList;
     }
 
-    public List<CacheLevel> getCacheLevelList() {
-        return cacheLevelList;
+    public void put(Cacheable cacheable) throws CacheException {
+        logger.info("Putting item [id {}] in the cache...", cacheable.getId());
+        logger.info("Check for item with the same id...");
+        removeItem(cacheable.getId()); // remove item with the same id from the cache
+        //displace(cacheable, 0);
+        putByStrategy(cacheable, 0);
+        logger.info("Item [id{}] was added.", cacheable.getId());
     }
 
-    public void put(Cacheable cachable) throws CacheException {
-        logger.info("Putting item [id {}] in the cache...", cachable.getId());
-        logger.info("Trying to find and remove item with the same id");
-        removeItem(cachable.getId());
-        displace(cachable, 0);
+    private void putByStrategy(Cacheable cacheable, int levelNum) throws CacheException {
+        try {
+            CacheLevel cacheLevel = cacheLevelList.get(levelNum);
+            logger.info("level {}:", levelNum);
+            if (cacheLevel.isFull()) {                                  // if level is full, strategy defined item must be displaced by the one that need to be saved
+                Cacheable displacedData = cacheLevel.pullByStrategy();
+                if (levelNum < levelCount()) {                     // if it is not the last level, shift displaced data to next level
+                    putByStrategy(displacedData, ++levelNum);
+                    cacheLevel.put(cacheable);
+                }
+            } else {
+                cacheLevel.put(cacheable); // The simplest case. Put cached object on this level - it is not full
+            }
+        } catch (CacheLevelException e) {
+            throw new CacheException("Cannot put item with id = " + cacheable.getId() + " in level " + levelNum, e);
+        }
     }
 
     /**
      * Get item in the cache by id.
      * Last time used time for this item will be updated.
+     *
      * @param id item id.
      * @return null if there is no item with the specified id in the cache.
      * @throws CacheException
@@ -47,19 +65,14 @@ public final class Cache {
         int levelNum = 0;
         logger.info("Searching item [id {}]", id);
         for (CacheLevel cacheLevel : cacheLevelList) {
+            logger.info("level {}:", levelNum);
             Cacheable cacheable;
             try {
-                cacheable = cacheLevel.pull(id);
+                cacheable = cacheLevel.get(id);
                 if (cacheable != null) {
-                    if (levelNum != 0) {
-                        logger.info("Item was found, putting it on the top level.");
-                        displace(cacheable, 0);
-                        return cacheable;
-                    } else {
-                        logger.info("Item was found on top level, putting it here.");
-                        put(cacheable);
-                        return cacheable;
-                    }
+                    logger.info("Item was found, putting it on the top level.");
+                    putByStrategy(cacheable, 0);
+                    return cacheable;
                 }
             } catch (CacheLevelException | CacheException e) {
                 throw new CacheException("Cannot get item with id = " + id, e);
@@ -70,73 +83,31 @@ public final class Cache {
         return null; // return null if nothing was found
     }
 
-    /**
-     * Internal method, used to save item on the level.
-     * If level is full, shift appropriate item on the next level. If it is the last level, appropriate item will be removed.
-     * Appropriate item will be determined by the cache strategy.
-     * @param cachable item that need to be saved on a level.
-     * @param level level to save the item.
-     * @throws CacheException if item cannot be saved.
-     */
-    private void displace(Cacheable cachable, int level) throws CacheException {
-        try {
-            CacheLevel cacheLevel = cacheLevelList.get(level);
-            if (!cacheLevel.remove(cachable.getId())) { // if there was no item with the same id in the level
-                if (cacheLevel.isFull()) {
-                    if (level == cacheLevelList.size() - 1) {            // if current level is last, removeItem the appropriate item and break recursive call
-                        cacheLevel.remove(cacheStrategy);
-                    } else {
-                        Cacheable displacedData = cacheLevel.pull(cacheStrategy); // if current level is not last, move appropriate item to next cache level
-                        logger.info("Displace item [id {}] on the next level.", displacedData.getId());
-                        displace(displacedData, ++level);
-                    }
-                    cacheLevel.put(cachable);   // save item on current level //
-                } else {
-                    cacheLevel.put(cachable); // The simpliest case. Put cached object on this level - it is not full because item was removed.
-                }
-            }
-        } catch (CacheLevelException e ) {
-            throw new CacheException("Cannot displace item with id = " + cachable.getId(), e);
-        }
+    public int levelCount() {
+        return cacheLevelList.size();
     }
 
-    /**
-     * Find item in the cache by id.
-     * Last time used time for this item will not be updated.
-     * @param id
-     * @return null if there is no item with the specified id in the cache.
-     * @throws CacheException
-     *
-     */
-    public Cacheable find(long id) throws CacheException {
-        logger.info("Getting item [id {}] from cache.", id);
-        Cacheable result = null;
+    public int levelSize(int levelNum) throws CacheException {
+        int result;
         try {
-            int levelNum = 1;
-            for (CacheLevel cacheLevel : cacheLevelList) {
-                result = cacheLevel.get(id);
-                if (result != null) {
-                    logger.info("Item has been found on level {}.", levelNum);
-                    break;
-                }
-                levelNum++;
-            }
+            result = cacheLevelList.get(levelNum).size();
         } catch (CacheLevelException e) {
-            throw new CacheException("Cannot get item with id " + id, e);
+            throw new CacheException("Cannot get size of  level " + levelNum, e);
         }
-        return result; // return null now if nothing was found in loop body
+        return result;
     }
 
     private int removeItem(long id) throws CacheException {
         int result = -1;
-        logger.info("Removing the item [id {}].", id);
+        logger.info("Trying to remove the item [id {}].", id);
         try {
-            for(int i = 0; i < cacheLevelList.size(); i++)
-                if (cacheLevelList.get(i).remove(id)) {
+            for (int i = 0; i < cacheLevelList.size(); i++) {
+                if (cacheLevelList.get(i).pull(id) != null) {
                     result = i;
                     logger.info("Item [id {}] has been removed", id);
                     break;
                 }
+            }
         } catch (CacheLevelException e) {
             throw new CacheException("Cannot remove item with id = " + id, e);
         }
@@ -162,11 +133,13 @@ public final class Cache {
         int result = 0;
         try {
             for (CacheLevel cacheLevel : cacheLevelList) { //max size of the cache = sum of max size of every level
+                logger.info("Asking level...");
                 result += cacheLevel.maxSize();
             }
         } catch (CacheLevelException e) {
             throw new CacheException("Cache max size was not counted.", e);
         }
+        logger.info("Cache max size is {}.", result);
         return result;
     }
 
@@ -186,12 +159,12 @@ public final class Cache {
         }
     }
 
-    public void delete() throws CacheException{
+    public void delete() throws CacheException {
         logger.info("Deleting the cache.");
         logger.info(toString());
         try {
             for (CacheLevel cacheLevel : cacheLevelList) {
-                    cacheLevel.delete();
+                cacheLevel.delete();
             }
         } catch (CacheLevelException e) {
             throw new CacheException("Cannot delete cache.", e);
@@ -202,7 +175,7 @@ public final class Cache {
         logger.info("Checking the cache for fill.");
         boolean result;
         try {
-            result = cacheLevelList.get(cacheLevelList.size()-1).isFull();
+            result = cacheLevelList.get(cacheLevelList.size() - 1).isFull();
         } catch (CacheLevelException e) {
             throw new CacheException("Cannot check the cache for fill.", e);
         }
@@ -218,9 +191,9 @@ public final class Cache {
 
         try {
             header1 = "Cache strategy: " + strategy() + "\n";
-            header2 = "Cache contains " + size() + " items of " +maxSize() +".\n";
+            header2 = "Cache contains " + size() + " items of " + maxSize() + ".\n";
             int levelNum = 1;
-            for (CacheLevel cacheLevel : getCacheLevelList()){
+            for (CacheLevel cacheLevel : cacheLevelList) {
                 levelsInfo.append(levelNum);
                 levelsInfo.append(": ");
                 levelsInfo.append(cacheLevel.size());

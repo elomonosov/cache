@@ -6,202 +6,178 @@ import ru.elomonosov.cache.CacheStrategy;
 import ru.elomonosov.cache.Cacheable;
 import ru.elomonosov.util.ClassNameUtil;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
 public abstract class AbstractCacheLevel implements CacheLevel {
 
     private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
+    protected CacheData cacheData;
 
-    /**
-     * @field Contains time of last access to the cached object and cached object.
-     *
-     */
-    protected SortedMap<Long, Cacheable> cachedData;
-
-    /**
-     * @field Maximum quantity of objects that can be stored.
-     */
-    protected int maxSize;
-
-    protected AbstractCacheLevel(int maxSize) {
-        this.maxSize = maxSize;
-        cachedData = new TreeMap<>();
+    public AbstractCacheLevel(CacheStrategy cacheStrategy, int maxSize) {
+        this.cacheData = new CacheData(cacheStrategy, maxSize);
     }
 
     @Override
     public int maxSize() {
-        logger.info("maxSize is {}", maxSize);
-        return maxSize;
+        logger.info("Level maxSize is {}", cacheData.maxSize);
+        return cacheData.maxSize;
     }
 
     @Override
-    public int size() throws CacheLevelException{
-        logger.info("Size is {}", cachedData.size());
-        return cachedData.size();
+    public int size() throws CacheLevelException {
+        logger.info("Size is {}", cacheData.size());
+        return cacheData.size();
     }
 
     @Override
-    public boolean remove(CacheStrategy cacheStrategy) throws CacheLevelException {
-        logger.info("Remove item? Search condition is: {}", cacheStrategy);
-        return removeItem(cacheStrategy);
+    public boolean isFull() throws CacheLevelException {
+        logger.info("Level is {}.", cacheData.isFull() ? "full" : "not full");
+        return cacheData.isFull();
     }
 
-    @Override
-    public Cacheable pull(long id) throws CacheLevelException {
-        logger.info("Pull item with id = {}?", id);
-        return pullItem(id);
-    }
+    protected class CacheData {
 
-    @Override
-    public boolean isFull()  throws CacheLevelException{
-        logger.info("Is level full?");
-        return isItemsFull();
-    }
+        final CacheStrategy cacheStrategy;
+        final int maxSize;
+        Map<Long, Cacheable> cacheMap;
 
-    @Override
-    public boolean remove(Cacheable cacheable) throws CacheLevelException {
-        logger.info("Remove item with id[{}]?", cacheable.getId());
-        return remove(cacheable.getId());
-    }
+        CacheData(CacheStrategy cacheStrategy, int maxSize) {
+            this.maxSize = maxSize;
+            this.cacheStrategy = cacheStrategy;
 
-    public boolean isItemsFull() {
-        logger.info("The level is {}", (cachedData.size() == maxSize()) ? "full." : "not full." );
-        return (cachedData.size() == maxSize());
-    }
-
-    protected void putItem(Cacheable cacheable) throws CacheLevelException {
-        logger.info("Putting item id[{}], trying to remove old item with the same id.", cacheable.getId());
-        removeItem(cacheable.getId());
-        cachedData.put(System.nanoTime(), cacheable); // update time of last access to the cached object.
-        logger.info("Item saved, level size is {}", cachedData.size());
-    }
-
-    protected Cacheable getItem(long id) throws CacheLevelException {
-        if (cachedData.isEmpty()) {
-            logger.info("Level is empty, nothing found.");
-            return null;
-        } else {
-            for (Map.Entry<Long, Cacheable> entry : cachedData.entrySet()) {
-                Cacheable cacheable = entry.getValue();
-                if (cacheable.getId() == id) {
-                    logger.info("Item id[{}] was found.", id);
-                    return cacheable;
-                }
-            }
-            logger.info("Item id[{}] was not found,", id);
-            return null; // return null now if didn't getItem anything in loop body
-        }
-    }
-
-
-
-    protected Cacheable getItem(CacheStrategy cacheStrategy) {
-        Cacheable result;
-        if (cachedData.isEmpty()) {
-            result = null;
-            logger.info("Level is emty, nothing found.");
-        } else{
-            long resultKey = 0;
             switch (cacheStrategy) {
                 case LEAST_RECENTLY_USED: {
-                    resultKey = cachedData.lastKey();
+                    cacheMap = new LinkedHashMap<>(maxSize, 1F, true);
                     break;
                 }
-                case MOST_RECENTLY_USED: {
-                    resultKey = cachedData.firstKey();
+                case RANDOM: {
+                    cacheMap = new HashMap<>();
+                    break;
+                }
+                default: {
+                    cacheMap = null;
                     break;
                 }
             }
-            result = cachedData.get(resultKey);
         }
-        logger.info("Item id[{}] was found.", result.getId());
-        return result;
-    }
 
-    protected boolean removeItem(long id) throws CacheLevelException {
-        if (cachedData.isEmpty()) {
-            logger.info("Level is empty, nothing removed.");
-            return false;
-        } else {
-            Iterator<Map.Entry<Long, Cacheable>> iterator = cachedData.entrySet().iterator();
-            while(iterator.hasNext()) {
-                Map.Entry<Long, Cacheable> entry = iterator.next();
-                if (entry.getValue().getId() == id) {
-                    iterator.remove();
-                    logger.info("Item id[{}] removed, level size is {}.", cachedData.size());
-                    return true;
-                }
+        boolean isFull() {
+            return (cacheMap.size() == maxSize);
+        }
+
+        int size() {
+            return cacheMap.size();
+        }
+
+        void clear() {
+            cacheMap.clear();
+        }
+
+        void put(Cacheable cacheable) throws CacheLevelException {
+            logger.info("Putting item id[{}].", cacheable.getId());
+            cacheMap.put(cacheable.getId(), cacheable);
+            logger.info("Item saved, level size is {}", cacheMap.size());
+        }
+
+        Cacheable get(long id) throws CacheLevelException {
+            Cacheable result = cacheMap.get(id);
+            logger.info("Item was {}found.", (result == null) ? "not " : "");
+            return result;
+        }
+
+        Cacheable getByStrategy() {
+            Cacheable result;
+            if (isFull()) {
+                result = null;
+                logger.info("Level is empty, nothing was found.");
+            } else {
+                result = cacheMap.get(keyByStrategy());
             }
+            return result;
         }
-        logger.info("Item not found, nothing removed.");
-        return false;
-    }
 
-    protected boolean removeItem(CacheStrategy cacheStrategy) throws CacheLevelException {
-        if (cachedData.isEmpty()) {
-            logger.info("Level is empty, nothing removed.");
-            return false;
-        } else{
-            long resultKey = 0;
+        long keyByStrategy() {
+            long result = 0;
             switch (cacheStrategy) {
                 case LEAST_RECENTLY_USED: {
-                    resultKey = cachedData.firstKey();
+                    Iterator<Long> iterator = cacheMap.keySet().iterator();
+                    result = iterator.next();
                     break;
                 }
-                case MOST_RECENTLY_USED: {
-                    resultKey = cachedData.lastKey();
+                case RANDOM: {
+                    int randomKeyNum = new Random().nextInt(cacheMap.size());
+                    Iterator<Long> iterator = cacheMap.keySet().iterator();
+
+                    for (int i = 0; i < randomKeyNum; i++) {
+                        iterator.next();
+                    }
+                    result = iterator.next();
                     break;
                 }
             }
-            cachedData.remove(resultKey);
-            logger.info("Item id[{}] was removed, level size is {}.", resultKey, size());
-            return true;
+            return result;
         }
-    }
 
-    protected Cacheable pullItem(long id) {
-        if (cachedData.isEmpty()) {
-            logger.info("The level is empty, nothing was found.");
-            return null;
-        } else {
-            Iterator<Map.Entry<Long, Cacheable>> iterator = cachedData.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Cacheable cacheable = iterator.next().getValue();
-                if (cacheable.getId() == id) {
-                    iterator.remove(); // remove item from the level because it's pulling, not just getting.
+        Cacheable removeByStrategy() {
+            Cacheable result;
+            if (isFull()) {
+                logger.info("Level is empty, nothing removed.");
+                result = null;
+            } else {
+                result = cacheMap.remove(keyByStrategy());
+                if (result != null) {
+                    logger.info("Item id[{}] removed, level size is {}.", result.getId(), cacheMap.size());
+                } else {
+                    logger.info("Item not found, nothing removed.");
+                    result = null;
+                }
+            }
+            return result;
+        }
+
+        boolean remove(long id) {
+            boolean result;
+            if (isFull()) {
+                logger.info("Level is empty, nothing removed.");
+                result = false;
+            } else {
+                if (cacheMap.remove(id) != null) {
+                    logger.info("Item id[{}] removed, level size is {}.", id, cacheMap.size());
+                    result = true;
+                } else {
+                    logger.info("Item not found, nothing removed.");
+                    result = false;
+                }
+            }
+            return result;
+        }
+
+        Cacheable pull(long id) {
+            Cacheable result;
+            if (cacheMap.isEmpty()) {
+                logger.info("The level is empty, nothing was found.");
+                return null;
+            } else {
+                result = cacheMap.remove(id);
+                if (result != null) {
                     logger.info("Item id[{}] has been pulled.", id);
-                    return cacheable;
+                } else {
+                    logger.info("Level does not contain item [id {}].", id);
                 }
             }
+            return result;
         }
-        logger.info("Level does not contain item [id {}].", id);
-        return null; // return null if nothing found.
-    }
 
-    protected Cacheable pullItem(CacheStrategy cacheStrategy) {
-        Cacheable result;
-        if (cachedData.isEmpty()) {
-            logger.info("The level is empty, nothing was found");
-            result = null;
-        } else {
-            long resultKey = 0;
-            switch (cacheStrategy) {
-                case LEAST_RECENTLY_USED: {
-                    resultKey = cachedData.firstKey();
-                    break;
-                }
-                case MOST_RECENTLY_USED: {
-                    resultKey = cachedData.lastKey();
-                    break;
-                }
+        Cacheable pullByStrategy() {
+            Cacheable result;
+            if (cacheMap.isEmpty()) {
+                logger.info("The level is empty, nothing was found");
+                result = null;
+            } else {
+                result = cacheMap.remove(keyByStrategy());
+                logger.info("Item [id {}] was pulled, level size is {} now.", result.getId(), cacheMap.size());
             }
-            result = cachedData.get(resultKey);
-            cachedData.remove(resultKey);
-            logger.info("Item [id {}] was pulled, level size is {} now.", result.getId(), cachedData.size());
+            return result;
         }
-        return result;
     }
 }

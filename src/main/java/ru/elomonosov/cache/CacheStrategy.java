@@ -10,7 +10,7 @@ public enum CacheStrategy {
     LEAST_RECENTLY_USED,
 
     /**
-     * Most recently used item will be discarded first.
+     * Random item will be discarded first.
      */
-    MOST_RECENTLY_USED
+    RANDOM
 }

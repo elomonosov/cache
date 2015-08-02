@@ -36,12 +36,8 @@
     <root>
         <priority value="info"/>
         <appender-ref ref="LF5_SOCKET"/>
+        <!--for IDEA plugin "Log4jMonitor"-->
         <appender-ref ref="file"/>
     </root>
-
-    <!-- <root>
-        <level value="INFO"/>
-        <appender-ref ref="file"/>
-    </root>-->
 
 </log4j:configuration>

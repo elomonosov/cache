@@ -10,7 +10,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.TreeMap;
+import java.util.LinkedHashMap;
 
 
 public class InFileCache extends AbstractCacheLevel {
@@ -19,8 +19,8 @@ public class InFileCache extends AbstractCacheLevel {
 
     protected final Path filePath;
 
-    public InFileCache(int maxSize, Path filePath) throws InFileLevelException {
-        super(maxSize);
+    public InFileCache(CacheStrategy cacheStrategy, int maxSize, Path filePath) throws InFileLevelException {
+        super(cacheStrategy, maxSize);
         try {
             if (!Files.exists(filePath)) {
                 Files.createDirectory(filePath);
@@ -32,46 +32,46 @@ public class InFileCache extends AbstractCacheLevel {
         }
     }
 
-    public InFileCache(int maxSize) throws InFileLevelException {
-        this(maxSize, Paths.get(System.getProperty("user.dir"), "tmp"));
+    public InFileCache(CacheStrategy cacheStrategy, int maxSize) throws InFileLevelException {
+        this(cacheStrategy, maxSize, Paths.get(System.getProperty("user.dir"), "tmp"));
     }
 
     @Override
     public void put(Cacheable cacheable) throws CacheLevelException {
         loadCachedData();
-        putItem(cacheable);
+        cacheData.put(cacheable);
         saveCachedData();
     }
 
     @Override
     public Cacheable get(long id) throws CacheLevelException {
         loadCachedData();
-        Cacheable result = getItem(id);
+        Cacheable result = cacheData.get(id);
         saveCachedData();
         return result;
     }
 
     @Override
-    public Cacheable get(CacheStrategy cacheStrategy) throws CacheLevelException {
+    public Cacheable getByStrategy() throws CacheLevelException {
         loadCachedData();
-        Cacheable result = getItem(cacheStrategy);
+        Cacheable result = cacheData.getByStrategy();
         saveCachedData();
         return result;
     }
 
     @Override
-    public boolean remove(long id) throws CacheLevelException {
+    public Cacheable pull(long id) throws CacheLevelException {
         loadCachedData();
-        boolean result = removeItem(id);
+        Cacheable result = cacheData.pull(id);
         saveCachedData();
         return result;
     }
 
     @Override
-    public Cacheable pull(CacheStrategy cacheStrategy) throws InFileLevelException {
+    public Cacheable pullByStrategy() throws InFileLevelException {
         loadCachedData();
-        logger.info("Pull item? Search condition is: {}", cacheStrategy);
-        Cacheable result = pullItem(cacheStrategy);
+        logger.info("Pull item? Search condition is: {}", cacheData.cacheStrategy);
+        Cacheable result = cacheData.pullByStrategy();
         saveCachedData();
         return result;
     }
@@ -79,20 +79,19 @@ public class InFileCache extends AbstractCacheLevel {
     @Override
     public int size() throws InFileLevelException {
         loadCachedData();
-        return cachedData.size();
+        return cacheData.size();
     }
 
     @Override
     public boolean isFull() throws InFileLevelException {
         loadCachedData();
-        boolean result = isItemsFull();
-        return result;
+        return cacheData.isFull();
     }
 
     @Override
     public void clear() throws InFileLevelException {
         loadCachedData();
-        cachedData.clear();
+        cacheData.clear();
         saveCachedData();
     }
 
@@ -108,23 +107,23 @@ public class InFileCache extends AbstractCacheLevel {
 
     private void loadCachedData() throws InFileLevelException {
         try {
-            try(ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath.toFile()))) {
-                cachedData = (TreeMap<Long, Cacheable>) in.readObject();
-                logger.info("Cache loaded from file, size is {}", cachedData.size());
+            try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath.toFile()))) {
+                cacheData.cacheMap = (LinkedHashMap<Long, Cacheable>) in.readObject();
+                logger.info("Cache loaded from file, size is {}", cacheData.size());
             }
         } catch (NullPointerException | EOFException e) {
             logger.info("Cache loading failed, file is empty.");
             //cachedData.clear(); // TODO think of
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException | ClassNotFoundException | ClassCastException e) {
             throw new InFileLevelException("Cannot read cached objects from file " + filePath, e);
         }
     }
 
     private void saveCachedData() throws InFileLevelException {
-            try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath.toFile()))) {
-                out.writeObject(cachedData);
-                logger.info("Cache saved to file, size is {}", cachedData.size());
-            } catch (IOException e) {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath.toFile()))) {
+            out.writeObject(cacheData.cacheMap);
+            logger.info("Cache saved to file, size is {}", cacheData.size());
+        } catch (IOException e) {
             throw new InFileLevelException("Cannot write cached object to file " + filePath, e);
         }
         System.gc(); // TODO other solution?

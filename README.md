@@ -32,7 +32,7 @@ Cache can work only with class that implements interface Cacheable.
         long getId();
     }
     
-Id must be unique for the instance that need to be cached. It means that id must be unique not only for class instance, but any instance of any classes that are Cacheable.
+Id must be unique for the instance that need to be cached. It means that id must be unique not only for class instance, but for any instance of any class that implements Cacheable.
 
 #Usage
 

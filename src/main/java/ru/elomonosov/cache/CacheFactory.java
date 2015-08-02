@@ -1,46 +1,38 @@
 package ru.elomonosov.cache;
 
-import ru.elomonosov.level.*;
+import ru.elomonosov.level.CacheLevel;
+import ru.elomonosov.level.CacheLevelFactory;
+import ru.elomonosov.level.CacheLevelFactoryException;
+import ru.elomonosov.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class CacheFactory {
+public final class CacheFactory {
 
     private static final CacheFactory INSTANCE = new CacheFactory();
-
-    private List<CacheLevel> cacheLevelList = new ArrayList<>();
-
+    private Levels levels;
     private CacheStrategy cacheStrategy;
 
     private CacheFactory() {
-
+        levels = new Levels();
     }
 
     public static CacheFactory getInstance() {
         return INSTANCE;
     }
 
-    public void addLevel(Level level, int size) throws CacheFactoryException {
-        if (!(size > 0)) {
+    public void addLevel(Level level, int maxSize) throws CacheFactoryException {
+
+        if (!(maxSize > 0)) {
             throw new IllegalArgumentException("Level size must be more than 0");
         }
-        CacheLevel cacheLevel = null;
-        try {
-            switch (level) {
-                case MEMORY: {
-                    cacheLevel = new InMemoryCache(size);
-                    break;
-                }
-                case FILE: {
-                    cacheLevel = new InFileCache(size);
-                    break;
-                }
-            }
-        } catch (CacheLevelException e) {
-            throw new CacheFactoryException("Cannot add level.", e);
+
+        if (level == null) {
+            throw new IllegalArgumentException("Level must be not null");
         }
-        cacheLevelList.add(cacheLevel);
+
+        levels.addLevel(level, maxSize);
     }
 
     public void setCacheStrategy(CacheStrategy cacheStrategy) {
@@ -52,7 +44,7 @@ public class CacheFactory {
     }
 
     public Cache getCache(int baseSize) throws CacheFactoryException {
-       return getCache(baseSize, 10);
+        return getCache(baseSize, 10);
     }
 
     public Cache getCache(int baseSize, double multiplier) throws CacheFactoryException {
@@ -63,24 +55,55 @@ public class CacheFactory {
             throw new IllegalArgumentException("Multiplier must be more than 0");
         }
 
-        Cache result;
         if (cacheStrategy == null) {
             cacheStrategy = CacheStrategy.LEAST_RECENTLY_USED;
         }
-        if (cacheLevelList.size() == 0) {
-            addLevel(Level.MEMORY, baseSize);
-            int size = (int) (baseSize * multiplier);
 
-            // Check for size overflow
-            if (size > 0) {
-                addLevel(Level.FILE, size);
+        int levelsQuantity = levels.levelList.size();
+        List<CacheLevel> cacheLevelList;
+        try {
+            if (levelsQuantity == 0) {
+                cacheLevelList = new ArrayList<>(2);
+                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize));
+                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, (int) (baseSize * multiplier)));
             } else {
-                addLevel(Level.FILE, Integer.MAX_VALUE);
+                cacheLevelList = new ArrayList<>(levelsQuantity);
+                for (int i = 0; i < levelsQuantity; i++) {
+                    cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i)));
+                }
             }
+        } catch (CacheLevelFactoryException e) {
+            throw new CacheFactoryException("Cannot create cache", e);
         }
-        result = new Cache(cacheStrategy, cacheLevelList);
-        cacheLevelList = new ArrayList<>();
-        cacheStrategy = null;
-        return result;
+        return new Cache(cacheStrategy, cacheLevelList);
+    }
+
+    class Levels {
+
+        List<Level> levelList;
+        List<Integer> sizeList;
+
+        public Levels() {
+            this.levelList = new ArrayList<>();
+            this.sizeList = new ArrayList<>();
+        }
+
+        void addLevel(Level level, int size) {
+            levelList.add(level);
+            sizeList.add(size);
+        }
+
+        void clear() {
+            levelList.clear();
+            sizeList.clear();
+        }
+
+        Level getLevelParameter(int num) {
+            return levelList.get(num);
+        }
+
+        int getSizeParameter(int num) {
+            return sizeList.get(num);
+        }
     }
 }

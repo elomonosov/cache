@@ -11,15 +11,13 @@ import static org.junit.Assert.*;
 
 public class CacheLevelTest {
 
-    //private static final int CACHED_DATA_COUNT = 3; // Cached items quantity that will be put on each cache level. Must be more than 1 and less than CACHE_MAX_SIZE
     private static final List<CacheLevel> cacheLevelList = new ArrayList<>();
 
     @BeforeClass
     public static void prepare() throws Exception {
-        CacheLevelFactory factory = CacheLevelFactory.getInstance();
-        cacheLevelList.add(factory.getCacheLevel(Level.MEMORY, 10));
-        cacheLevelList.add(factory.getCacheLevel(Level.FILE, 10));
-        // add CacheLevel implementation to test it
+        // add CacheLevel implementation to cacheLevelList to test it
+        cacheLevelList.add(new InMemoryCache(CacheStrategy.LEAST_RECENTLY_USED, 10));
+        cacheLevelList.add(new InMemoryCache(CacheStrategy.LEAST_RECENTLY_USED, 10));
     }
 
     @AfterClass
@@ -58,9 +56,8 @@ public class CacheLevelTest {
     public void testGet() throws Exception {
         int level = 0;
         for (CacheLevel cacheLevel : cacheLevelList) {
-            TestCacheData testCacheData = new TestCacheData(5555, "storedData");
-            cacheLevel.put(testCacheData);
-            TestCacheData storedTestCacheData = (TestCacheData) cacheLevel.get(CacheStrategy.LEAST_RECENTLY_USED);
+            TestCacheData testCacheData = new TestCacheData(0, "testCacheData" + 0);
+            TestCacheData storedTestCacheData = (TestCacheData) cacheLevel.getByStrategy();
             assertEquals("Got wrong item, level " + level, testCacheData, storedTestCacheData);
             level++;
         }
@@ -70,7 +67,7 @@ public class CacheLevelTest {
     public void testRemove() throws Exception {
         for (CacheLevel cacheLevel : cacheLevelList) {
             int sizeBeforeRemove = cacheLevel.size();
-            cacheLevel.remove(1);
+            cacheLevel.pull(1);
             assertEquals("Item was not removed.", sizeBeforeRemove - 1, cacheLevel.size());
         }
     }
@@ -80,7 +77,7 @@ public class CacheLevelTest {
         for (CacheLevel cacheLevel : cacheLevelList) {
             assertFalse("Cache is not full, but showed as full.", cacheLevel.isFull());
 
-            for(int i = cacheLevel.size(); i < cacheLevel.maxSize(); i++) {
+            for (int i = cacheLevel.size(); i < cacheLevel.maxSize(); i++) {
                 cacheLevel.put(new TestCacheData(i, "testCacheData" + i));
             }
             assertTrue("Cache is full, but showed as not full.", cacheLevel.isFull());
