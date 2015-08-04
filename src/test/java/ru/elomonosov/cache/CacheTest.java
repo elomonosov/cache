@@ -11,7 +11,7 @@ import static org.junit.Assert.assertEquals;
 
 public class CacheTest {
 
-    private static final int LEVEL_MAX_SIZE = 5;
+    private static final int LEVEL_MAX_SIZE = 20;
     private static List<Cache> cacheList = new ArrayList<>();
     private static List<Integer> cacheMaxSizeList = new ArrayList<>();
 
@@ -21,18 +21,11 @@ public class CacheTest {
 
         // Add caches to cacheList to test it
         cacheFactory.addLevel(Level.MEMORY, LEVEL_MAX_SIZE);
-        cacheFactory.addLevel(Level.FILE, LEVEL_MAX_SIZE);
+        cacheFactory.addLevel(Level.SEPARATE_FILES, LEVEL_MAX_SIZE);
         cacheFactory.setCacheStrategy(CacheStrategy.LEAST_RECENTLY_USED);
         Cache cache = cacheFactory.getCache();
         cacheList.add(cache);
         cacheMaxSizeList.add(cache.maxSize());
-    }
-
-    @AfterClass
-    public static void clear() throws CacheException {
-        for (Cache cache : cacheList) {
-            cache.delete();
-        }
     }
 
     @Before

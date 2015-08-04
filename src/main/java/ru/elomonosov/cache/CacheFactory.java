@@ -10,6 +10,35 @@ import java.util.List;
 
 public final class CacheFactory {
 
+    class Levels {
+
+        List<Level> levelList;
+        List<Integer> sizeList;
+
+        public Levels() {
+            this.levelList = new ArrayList<>();
+            this.sizeList = new ArrayList<>();
+        }
+
+        void addLevel(Level level, int size) {
+            levelList.add(level);
+            sizeList.add(size);
+        }
+
+        void clear() {
+            levelList.clear();
+            sizeList.clear();
+        }
+
+        Level getLevelParameter(int num) {
+            return levelList.get(num);
+        }
+
+        int getSizeParameter(int num) {
+            return sizeList.get(num);
+        }
+    }
+
     private static final CacheFactory INSTANCE = new CacheFactory();
     private Levels levels;
     private CacheStrategy cacheStrategy;
@@ -64,12 +93,12 @@ public final class CacheFactory {
         try {
             if (levelsQuantity == 0) {
                 cacheLevelList = new ArrayList<>(2);
-                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize));
-                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, (int) (baseSize * multiplier)));
+                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize, 0));
+                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, (int) (baseSize * multiplier), 1));
             } else {
                 cacheLevelList = new ArrayList<>(levelsQuantity);
                 for (int i = 0; i < levelsQuantity; i++) {
-                    cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i)));
+                    cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i), i));
                 }
             }
         } catch (CacheLevelFactoryException e) {
@@ -78,32 +107,5 @@ public final class CacheFactory {
         return new Cache(cacheStrategy, cacheLevelList);
     }
 
-    class Levels {
 
-        List<Level> levelList;
-        List<Integer> sizeList;
-
-        public Levels() {
-            this.levelList = new ArrayList<>();
-            this.sizeList = new ArrayList<>();
-        }
-
-        void addLevel(Level level, int size) {
-            levelList.add(level);
-            sizeList.add(size);
-        }
-
-        void clear() {
-            levelList.clear();
-            sizeList.clear();
-        }
-
-        Level getLevelParameter(int num) {
-            return levelList.get(num);
-        }
-
-        int getSizeParameter(int num) {
-            return sizeList.get(num);
-        }
-    }
 }

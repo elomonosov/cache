@@ -20,7 +20,7 @@ public interface CacheLevel {
 
     boolean isFull() throws CacheLevelException;
 
-    void clear() throws CacheLevelException;
+    int getOrder();
 
-    void delete() throws CacheLevelException;
+    void clear() throws CacheLevelException;
 }

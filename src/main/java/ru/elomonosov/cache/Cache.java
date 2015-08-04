@@ -6,7 +6,9 @@ import ru.elomonosov.level.CacheLevel;
 import ru.elomonosov.level.CacheLevelException;
 import ru.elomonosov.util.ClassNameUtil;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public final class Cache {
 
@@ -31,26 +33,43 @@ public final class Cache {
         logger.info("Check for item with the same id...");
         removeItem(cacheable.getId()); // remove item with the same id from the cache
         //displace(cacheable, 0);
-        putByStrategy(cacheable, 0);
+        putByStrategy(cacheable, levelListByStrategy());
         logger.info("Item [id{}] was added.", cacheable.getId());
     }
 
-    private void putByStrategy(Cacheable cacheable, int levelNum) throws CacheException {
+    private void putByStrategy(Cacheable cacheable, List<CacheLevel> levelsByStrategy) throws CacheException {
+        CacheLevel cacheLevel = null;
         try {
-            CacheLevel cacheLevel = cacheLevelList.get(levelNum);
-            logger.info("level {}:", levelNum);
+            cacheLevel = levelsByStrategy.get(0);
             if (cacheLevel.isFull()) {                                  // if level is full, strategy defined item must be displaced by the one that need to be saved
                 Cacheable displacedData = cacheLevel.pullByStrategy();
-                if (levelNum < levelCount()) {                     // if it is not the last level, shift displaced data to next level
-                    putByStrategy(displacedData, ++levelNum);
+                if (levelsByStrategy.size() > 1) {                     // if it is not the last level, shift displaced data to next level
+                    levelsByStrategy.remove(0);
+                    putByStrategy(displacedData, levelsByStrategy);
                     cacheLevel.put(cacheable);
                 }
             } else {
                 cacheLevel.put(cacheable); // The simplest case. Put cached object on this level - it is not full
             }
         } catch (CacheLevelException e) {
-            throw new CacheException("Cannot put item with id = " + cacheable.getId() + " in level " + levelNum, e);
+            throw new CacheException("Cannot put item with id = " + cacheable.getId() + " in level " + cacheLevel.getOrder(), e);
         }
+    }
+
+    private List<CacheLevel> levelListByStrategy() {
+        List<CacheLevel> result = new ArrayList<>();
+        switch (cacheStrategy) {
+            case LEAST_RECENTLY_USED: {
+                result.addAll(cacheLevelList);
+                break;
+            }
+            case RANDOM: {
+                CacheLevel randomCacheLevel = cacheLevelList.get(new Random().nextInt(cacheLevelList.size()));
+                result.add(randomCacheLevel);
+                break;
+            }
+        }
+        return result;
     }
 
     /**
@@ -71,7 +90,7 @@ public final class Cache {
                 cacheable = cacheLevel.get(id);
                 if (cacheable != null) {
                     logger.info("Item was found, putting it on the top level.");
-                    putByStrategy(cacheable, 0);
+                    putByStrategy(cacheable, levelListByStrategy());
                     return cacheable;
                 }
             } catch (CacheLevelException | CacheException e) {
@@ -81,20 +100,6 @@ public final class Cache {
         }
         logger.info("Item has not found.");
         return null; // return null if nothing was found
-    }
-
-    public int levelCount() {
-        return cacheLevelList.size();
-    }
-
-    public int levelSize(int levelNum) throws CacheException {
-        int result;
-        try {
-            result = cacheLevelList.get(levelNum).size();
-        } catch (CacheLevelException e) {
-            throw new CacheException("Cannot get size of  level " + levelNum, e);
-        }
-        return result;
     }
 
     private int removeItem(long id) throws CacheException {
@@ -156,18 +161,6 @@ public final class Cache {
             }
         } catch (CacheLevelException e) {
             throw new CacheException("Cannot clear cache.", e);
-        }
-    }
-
-    public void delete() throws CacheException {
-        logger.info("Deleting the cache.");
-        logger.info(toString());
-        try {
-            for (CacheLevel cacheLevel : cacheLevelList) {
-                cacheLevel.delete();
-            }
-        } catch (CacheLevelException e) {
-            throw new CacheException("Cannot delete cache.", e);
         }
     }
 

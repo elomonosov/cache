@@ -10,36 +10,11 @@ import java.util.*;
 
 public abstract class AbstractCacheLevel implements CacheLevel {
 
-    private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
-    protected CacheData cacheData;
-
-    public AbstractCacheLevel(CacheStrategy cacheStrategy, int maxSize) {
-        this.cacheData = new CacheData(cacheStrategy, maxSize);
-    }
-
-    @Override
-    public int maxSize() {
-        logger.info("Level maxSize is {}", cacheData.maxSize);
-        return cacheData.maxSize;
-    }
-
-    @Override
-    public int size() throws CacheLevelException {
-        logger.info("Size is {}", cacheData.size());
-        return cacheData.size();
-    }
-
-    @Override
-    public boolean isFull() throws CacheLevelException {
-        logger.info("Level is {}.", cacheData.isFull() ? "full" : "not full");
-        return cacheData.isFull();
-    }
-
     protected class CacheData {
 
         final CacheStrategy cacheStrategy;
         final int maxSize;
-        Map<Long, Cacheable> cacheMap;
+        Map<Long, Cacheable> cacheMap; // not final because of deserialization needs
 
         CacheData(CacheStrategy cacheStrategy, int maxSize) {
             this.maxSize = maxSize;
@@ -179,5 +154,37 @@ public abstract class AbstractCacheLevel implements CacheLevel {
             }
             return result;
         }
+    }
+
+    private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
+    protected CacheData cacheData;
+    protected final int order;
+
+    public AbstractCacheLevel(CacheStrategy cacheStrategy, int maxSize, int order) {
+        this.cacheData = new CacheData(cacheStrategy, maxSize);
+        this.order = order;
+    }
+
+    @Override
+    public int maxSize() {
+        logger.info("Level maxSize is {}", cacheData.maxSize);
+        return cacheData.maxSize;
+    }
+
+    @Override
+    public int size() throws CacheLevelException {
+        logger.info("Size is {}", cacheData.size());
+        return cacheData.size();
+    }
+
+    @Override
+    public boolean isFull() throws CacheLevelException {
+        logger.info("Level is {}.", cacheData.isFull() ? "full" : "not full");
+        return cacheData.isFull();
+    }
+
+    @Override
+    public int getOrder() {
+        return  order;
     }
 }

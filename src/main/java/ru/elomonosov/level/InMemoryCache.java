@@ -6,8 +6,8 @@ import ru.elomonosov.cache.Cacheable;
 
 public class InMemoryCache extends AbstractCacheLevel implements CacheLevel {
 
-    public InMemoryCache(CacheStrategy cacheStrategy, int maxSize) {
-        super(cacheStrategy, maxSize);
+    public InMemoryCache(CacheStrategy cacheStrategy, int maxSize, int order) {
+        super(cacheStrategy, maxSize, order);
     }
 
     @Override
@@ -39,10 +39,4 @@ public class InMemoryCache extends AbstractCacheLevel implements CacheLevel {
     public void clear() throws CacheLevelException {
         cacheData.clear();
     }
-
-    @Override
-    public void delete() throws CacheLevelException {
-        cacheData.clear();
-    }
-
 }

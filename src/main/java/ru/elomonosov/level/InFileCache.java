@@ -13,27 +13,27 @@ import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 
 
-public class InFileCache extends AbstractCacheLevel {
+public class InFileCache extends AbstractCacheLevel implements CacheLevel{
 
     private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
 
     protected final Path filePath;
 
-    public InFileCache(CacheStrategy cacheStrategy, int maxSize, Path filePath) throws InFileLevelException {
-        super(cacheStrategy, maxSize);
+    public InFileCache(CacheStrategy cacheStrategy, int maxSize, int order, Path dirPath) throws InFileLevelException {
+        super(cacheStrategy, maxSize, order);
         try {
-            if (!Files.exists(filePath)) {
-                Files.createDirectory(filePath);
+            if (!Files.exists(dirPath)) {
+                Files.createDirectory(dirPath);
             }
-            this.filePath = Files.createTempFile(Paths.get(filePath.toString()), "cache", ".tmp");
-            logger.info("File {} was created.", filePath);
+            this.filePath = Files.createTempFile(Paths.get(dirPath.toString()), "cache", ".tmp");
+            logger.info("File {} was created.", dirPath);
         } catch (IOException e) {
-            throw new InFileLevelException("Cannot create file " + filePath, e);
+            throw new InFileLevelException("Cannot create file " + dirPath, e);
         }
     }
 
-    public InFileCache(CacheStrategy cacheStrategy, int maxSize) throws InFileLevelException {
-        this(cacheStrategy, maxSize, Paths.get(System.getProperty("user.dir"), "tmp"));
+    public InFileCache(CacheStrategy cacheStrategy, int maxSize, int order) throws InFileLevelException {
+        this(cacheStrategy, maxSize, order, Paths.get(System.getProperty("user.dir"), "tmp"));
     }
 
     @Override
@@ -92,20 +92,15 @@ public class InFileCache extends AbstractCacheLevel {
     public void clear() throws InFileLevelException {
         loadCachedData();
         cacheData.clear();
-        saveCachedData();
-    }
-
-    @Override
-    public void delete() throws InFileLevelException {
         try {
             Files.delete(filePath);
-            logger.info("File {} was deleted.", filePath);
         } catch (IOException e) {
-            throw new InFileLevelException("Cannot delete file + " + filePath, e);
+            throw new InFileLevelException("", e);
         }
     }
 
     private void loadCachedData() throws InFileLevelException {
+        initIfNecessary();
         try {
             try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath.toFile()))) {
                 cacheData.cacheMap = (LinkedHashMap<Long, Cacheable>) in.readObject();
@@ -127,5 +122,15 @@ public class InFileCache extends AbstractCacheLevel {
             throw new InFileLevelException("Cannot write cached object to file " + filePath, e);
         }
         System.gc(); // TODO other solution?
+    }
+
+    private void initIfNecessary() throws InFileLevelException {
+        if (!Files.exists(filePath)) {
+            try {
+                Files.createFile(filePath);
+            } catch (IOException e) {
+                throw new InFileLevelException("Cannot init file", e);
+            }
+        }
     }
 }
