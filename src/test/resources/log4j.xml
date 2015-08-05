@@ -34,7 +34,7 @@
     </appender>
 
     <root>
-        <priority value="error"/>
+        <priority value="info"/>
         <appender-ref ref="LF5_SOCKET"/>
         <!--for IDEA plugin "Log4jMonitor"-->
         <appender-ref ref="file"/>

@@ -15,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 
-public class InFileSepCache implements CacheLevel {
+public class InFileLevel implements CacheLevel {
 
     private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
 
@@ -27,7 +27,7 @@ public class InFileSepCache implements CacheLevel {
 
     CacheStrategy cacheStrategy;
 
-    public InFileSepCache(CacheStrategy cacheStrategy, int maxSize, int order) {
+    public InFileLevel(CacheStrategy cacheStrategy, int maxSize, int order) {
         this.maxSize = maxSize;
         this.order = order;
         this.cacheStrategy = cacheStrategy;
@@ -48,7 +48,6 @@ public class InFileSepCache implements CacheLevel {
         } else {
             try {
                 Path path = Files.createTempFile(Paths.get(System.getProperty("user.dir"), "tmp"), "cache", ".tmp");
-
                 try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(path.toFile())))) {
                     out.writeObject(cacheable);
                 }
@@ -161,7 +160,6 @@ public class InFileSepCache implements CacheLevel {
             case RANDOM: {
                 int randomKeyNum = new Random().nextInt(cachePaths.size());
                 Iterator<Long> iterator = cachePaths.keySet().iterator();
-
                 for (int i = 0; i < randomKeyNum; i++) {
                     iterator.next();
                 }

@@ -15,48 +15,49 @@ public class CacheLevelTest {
 
     private static final Logger logger = LoggerFactory.getLogger(ClassNameUtil.getCurrentClassName());
 
-    private static final Map<CacheLevel, Long> cacheLevelMap = new LinkedHashMap<>();
+    private static final Map<CacheLevel, Long> cacheLevelMap = new LinkedHashMap<>(); // keep metrics for cache level in the value
 
     @BeforeClass
     public static void prepare() throws Exception {
         // add CacheLevel implementation to cacheLevelMap to test it
-        cacheLevelMap.put(new InMemoryCache(CacheStrategy.LEAST_RECENTLY_USED, 10, 0), 0L);
-        cacheLevelMap.put(new InFileCache(CacheStrategy.LEAST_RECENTLY_USED, 10, 1), 0L);
-        cacheLevelMap.put(new InFileSepCache(CacheStrategy.LEAST_RECENTLY_USED, 10, 2), 0L);
+        cacheLevelMap.put(new InMemoryLevel(CacheStrategy.LEAST_RECENTLY_USED, 500, 0), 0L);
+        cacheLevelMap.put(new InFileLevel(CacheStrategy.LEAST_RECENTLY_USED, 500, 1), 0L);
     }
 
     @AfterClass
     public static void clear() throws Exception {
         Iterator<Map.Entry<CacheLevel, Long>> iterator = cacheLevelMap.entrySet().iterator();
-        List<String> stringResults = new ArrayList<>(cacheLevelMap.size());
-        List<Long> timeResults = new ArrayList<>(cacheLevelMap.size());
-
         long testTime = 0;
-        while(iterator.hasNext()) {
+        List<Result> results = new ArrayList<>(cacheLevelMap.size());
+        while (iterator.hasNext()) {
             StringBuilder sb = new StringBuilder();
             Map.Entry<CacheLevel, Long> entry = iterator.next();
             sb.append("Level ");
             sb.append(entry.getKey().getOrder());
             sb.append(" ");
-            sb.append(entry.getKey().getClass().getCanonicalName());
+            sb.append(entry.getKey().getClass().getSimpleName());
             sb.append(" time in test: ");
-            sb.append(entry.getValue());
-            sb.append(" ---- ");
-            stringResults.add(sb.toString());
+            sb.append( (entry.getValue() / 1_000_000_000d) );
+            sb.append(" seconds ---- ");
+            results.add(new Result(sb.toString(), entry.getValue()));
             testTime += entry.getValue();
-            timeResults.add(entry.getValue());
         }
-
         double onePercent = testTime / 100d;
-        StringBuilder result = new StringBuilder();
 
-        for (int i = 0; i < cacheLevelMap.size(); i++) {
-            result.append(stringResults.get(i));
-            result.append(timeResults.get(i) / onePercent);
-            result.append("%\n");
+
+        StringBuilder allResult = new StringBuilder();
+        for (Result result : results) {
+            result.setRelativeTime((result.getAbsoluteTime() / onePercent));
+            result.setText(result.getText() + result.relativeTime + " %");
+            allResult.append(result.getText());
+            allResult.append("\n");
         }
-        logger.info(result.toString());
-        System.out.println(result);
+        allResult.append("Time taken: ");
+        allResult.append(testTime / 1_000_000_000d);
+        allResult.append(" seconds.");
+
+        logger.info(allResult.toString());
+        System.out.println(allResult);
     }
 
     @Before
@@ -68,8 +69,9 @@ public class CacheLevelTest {
             for (int i = 0; i < cacheLevel.maxSize() - 1; i++) {
                 cacheLevel.put(new TestCacheData(i, "testCacheData" + i));
             }
-            long timeAfter = System.nanoTime() - timeBefore;
-            cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
         }
     }
 
@@ -80,8 +82,9 @@ public class CacheLevelTest {
             CacheLevel cacheLevel = iterator.next();
             long timeBefore = System.nanoTime();
                 cacheLevel.clear();
-            long timeAfter = System.nanoTime() - timeBefore;
-            //cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
         }
     }
 
@@ -94,8 +97,9 @@ public class CacheLevelTest {
             int sizeBeforeAdd = cacheLevel.size();
             cacheLevel.put(new TestCacheData(0, "testCacheData" + 0));
             assertEquals("Not all items are unique.", sizeBeforeAdd, cacheLevel.size());
-            long timeAfter = System.nanoTime() - timeBefore;
-            cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
         }
     }
 
@@ -111,8 +115,9 @@ public class CacheLevelTest {
             TestCacheData storedTestCacheData = (TestCacheData) cacheLevel.getByStrategy();
             assertEquals("Got wrong item, level " + level, testCacheData, storedTestCacheData);
             level++;
-            long timeAfter = System.nanoTime() - timeBefore;
-            cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
         }
     }
 
@@ -125,8 +130,9 @@ public class CacheLevelTest {
             int sizeBeforeRemove = cacheLevel.size();
             cacheLevel.pull(1);
             assertEquals("Item was not removed.", sizeBeforeRemove - 1, cacheLevel.size());
-            long timeAfter = System.nanoTime() - timeBefore;
-            cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
         }
     }
 
@@ -142,8 +148,43 @@ public class CacheLevelTest {
                 cacheLevel.put(new TestCacheData(i, "testCacheData" + i));
             }
             assertTrue("Cache is full, but showed as not full.", cacheLevel.isFull());
-            long timeAfter = System.nanoTime() - timeBefore;
-            cacheLevelMap.put(cacheLevel, timeAfter);
+            long resultTime = System.nanoTime() - timeBefore;
+            long oldResult = cacheLevelMap.get(cacheLevel);
+            cacheLevelMap.put(cacheLevel, oldResult + resultTime);
+        }
+    }
+
+    static class Result {
+
+        private String text;
+
+        private long absoluteTime;
+
+        private double relativeTime;
+
+        public Result(String text, long absoluteTime) {
+            this.text = text;
+            this.absoluteTime = absoluteTime;
+        }
+
+        public long getAbsoluteTime() {
+            return absoluteTime;
+        }
+
+        public double getRelativeTime() {
+            return relativeTime;
+        }
+
+        public void setRelativeTime(double relativeTime) {
+            this.relativeTime = relativeTime;
+        }
+
+        public void setText(String text) {
+            this.text = text;
+        }
+
+        public String getText() {
+            return text;
         }
     }
 }

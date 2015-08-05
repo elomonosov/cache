@@ -50,7 +50,7 @@ This is the example of getting 2-level cache, first in memory, second in file. I
 
     Cache.put(Cacheable cacheable);
     
-Item will be stored in the cache, positioned on the top level.
+Item will be stored in the cache.
 
 ### Least recently used strategy (LRU)
 
@@ -78,7 +78,7 @@ Returns stored item from the cache. If there is no item with the specified id in
     
 ### Least recently used strategy (LRU)
 
-Requested item becomes the newest one. Cache removes the requested item from it current position where it was stored and call the saving procedure for it to the first level.
+Requested item becomes the newest one. Cache removes the requested item from it current position and call the saving procedure for it to the top level.
 
 ### Random replacement strategy (RR)
     
@@ -122,10 +122,3 @@ Using the cache:
          
          CachingData requested = cache.get(3); // requested contains null.
     }
-
-#API Reference
-
-## Cache
-
-## Cache level
-

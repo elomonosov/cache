@@ -2,7 +2,6 @@ package ru.elomonosov.cache;
 
 import ru.elomonosov.level.CacheLevel;
 import ru.elomonosov.level.CacheLevelFactory;
-import ru.elomonosov.level.CacheLevelFactoryException;
 import ru.elomonosov.level.Level;
 
 import java.util.ArrayList;
@@ -90,22 +89,21 @@ public final class CacheFactory {
 
         int levelsQuantity = levels.levelList.size();
         List<CacheLevel> cacheLevelList;
-        try {
-            if (levelsQuantity == 0) {
-                cacheLevelList = new ArrayList<>(2);
-                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize, 0));
-                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, (int) (baseSize * multiplier), 1));
-            } else {
-                cacheLevelList = new ArrayList<>(levelsQuantity);
-                for (int i = 0; i < levelsQuantity; i++) {
-                    cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i), i));
-                }
+        if (levelsQuantity == 0) {
+            cacheLevelList = new ArrayList<>(2);
+            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize, 0));
+            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.FILE, (int) (baseSize * multiplier), 1));
+        } else {
+            cacheLevelList = new ArrayList<>(levelsQuantity);
+            for (int i = 0; i < levelsQuantity; i++) {
+                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i), i));
             }
-        } catch (CacheLevelFactoryException e) {
-            throw new CacheFactoryException("Cannot create cache", e);
         }
+
         return new Cache(cacheStrategy, cacheLevelList);
     }
 
-
+    public void clearLevels() {
+        levels.clear();
+    }
 }

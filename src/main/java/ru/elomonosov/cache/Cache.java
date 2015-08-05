@@ -28,25 +28,38 @@ public final class Cache {
         this.cacheLevelList = cacheLevelList;
     }
 
+    /**
+     * Add item in the cache on the top level. Item with the same id will be removed from the cache.
+     *
+     * @param cacheable item that should be stored in the cache.
+     * @throws CacheException if any level cannot reprocess item adding.
+     */
     public void put(Cacheable cacheable) throws CacheException {
         logger.info("Putting item [id {}] in the cache...", cacheable.getId());
         logger.info("Check for item with the same id...");
         removeItem(cacheable.getId()); // remove item with the same id from the cache
-        //displace(cacheable, 0);
-        putByStrategy(cacheable, levelListByStrategy());
+        logger.info("Adding item to cache...");
+        putByStrategy(cacheable, levelListByStrategy()); // put item in cache.
         logger.info("Item [id{}] was added.", cacheable.getId());
     }
 
+    /**
+     * Internal method. Use strategy defined method of displace item from the cache levels if cache levels are full.
+     *
+     * @param cacheable item that should be stored in the cache.
+     * @param levelsByStrategy
+     * @throws CacheException if any level cannot reprocess item adding.
+     */
     private void putByStrategy(Cacheable cacheable, List<CacheLevel> levelsByStrategy) throws CacheException {
         CacheLevel cacheLevel = null;
         try {
             cacheLevel = levelsByStrategy.get(0);
             if (cacheLevel.isFull()) {                                  // if level is full, strategy defined item must be displaced by the one that need to be saved
-                Cacheable displacedData = cacheLevel.pullByStrategy();
+                Cacheable displacedData = cacheLevel.pullByStrategy(); // get the item that need to be shifted or removed
                 if (levelsByStrategy.size() > 1) {                     // if it is not the last level, shift displaced data to next level
-                    levelsByStrategy.remove(0);
-                    putByStrategy(displacedData, levelsByStrategy);
-                    cacheLevel.put(cacheable);
+                    levelsByStrategy.remove(0);                        // remove level from the list of reprocessing levels
+                    putByStrategy(displacedData, levelsByStrategy);    // call this method for the list of reprocessing levels
+                    cacheLevel.put(cacheable);                         // add item to this level
                 }
             } else {
                 cacheLevel.put(cacheable); // The simplest case. Put cached object on this level - it is not full
@@ -56,6 +69,10 @@ public final class Cache {
         }
     }
 
+    /**
+     * Internal method.
+     * @return list of levels that are using in shifting displaced items from top levels to bottom.
+     */
     private List<CacheLevel> levelListByStrategy() {
         List<CacheLevel> result = new ArrayList<>();
         switch (cacheStrategy) {
@@ -74,11 +91,11 @@ public final class Cache {
 
     /**
      * Get item in the cache by id.
-     * Last time used time for this item will be updated.
+     * Items order in the cache will be updated. Returned item will be put on the top level.
      *
      * @param id item id.
      * @return null if there is no item with the specified id in the cache.
-     * @throws CacheException
+     * @throws CacheException if any level cannot reprocess item getting.
      */
     public Cacheable get(long id) throws CacheException {
         int levelNum = 0;
@@ -102,6 +119,13 @@ public final class Cache {
         return null; // return null if nothing was found
     }
 
+    /**
+     * Internal method. Remove item from the cache.
+     *
+     * @param id item id
+     * @return level order, that contained item that was removed. Returns -1 if item was not found.
+     * @throws CacheException if any level cannot reprocess item removing.
+     */
     private int removeItem(long id) throws CacheException {
         int result = -1;
         logger.info("Trying to remove the item [id {}].", id);
@@ -120,6 +144,11 @@ public final class Cache {
         return result;
     }
 
+    /**
+     *
+     * @return current size of cache, i.e. quantity of stored items.
+     * @throws CacheException
+     */
     public int size() throws CacheException {
         logger.info("Counting the cache size.");
         int result = 0;
@@ -133,6 +162,11 @@ public final class Cache {
         return result;
     }
 
+    /**
+     *
+     * @return quantity of items that can be stored in the cache.
+     * @throws CacheException
+     */
     public int maxSize() throws CacheException {
         logger.info("Counting the cache max size.");
         int result = 0;
@@ -148,10 +182,18 @@ public final class Cache {
         return result;
     }
 
+    /**
+     * Shows what strategy is in use by the cache in performing all cache operations.
+     * @return the cache strategy
+     */
     public CacheStrategy strategy() {
         return cacheStrategy;
     }
 
+    /**
+     * Clears the cache from all items.
+     * @throws CacheException if any level cannot be cleared.
+     */
     public void clear() throws CacheException {
         logger.info("Clearing the cache.");
         logger.info(toString());
@@ -164,6 +206,11 @@ public final class Cache {
         }
     }
 
+    /**
+     * Show if the cache is full or not.
+     * @return true if the cache can store more items without displace already stored, and false in the other case.
+     * @throws CacheException
+     */
     public boolean isFull() throws CacheException {
         logger.info("Checking the cache for fill.");
         boolean result;

@@ -21,7 +21,7 @@ public class CacheTest {
 
         // Add caches to cacheList to test it
         cacheFactory.addLevel(Level.MEMORY, LEVEL_MAX_SIZE);
-        cacheFactory.addLevel(Level.SEPARATE_FILES, LEVEL_MAX_SIZE);
+        cacheFactory.addLevel(Level.FILE, LEVEL_MAX_SIZE);
         cacheFactory.setCacheStrategy(CacheStrategy.LEAST_RECENTLY_USED);
         Cache cache = cacheFactory.getCache();
         cacheList.add(cache);
