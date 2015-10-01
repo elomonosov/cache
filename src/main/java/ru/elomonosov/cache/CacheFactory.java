@@ -4,67 +4,15 @@ import ru.elomonosov.level.CacheLevel;
 import ru.elomonosov.level.CacheLevelFactory;
 import ru.elomonosov.level.Level;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public final class CacheFactory {
 
-    class Levels {
-
-        List<Level> levelList;
-        List<Integer> sizeList;
-
-        public Levels() {
-            this.levelList = new ArrayList<>();
-            this.sizeList = new ArrayList<>();
-        }
-
-        void addLevel(Level level, int size) {
-            levelList.add(level);
-            sizeList.add(size);
-        }
-
-        void clear() {
-            levelList.clear();
-            sizeList.clear();
-        }
-
-        Level getLevelParameter(int num) {
-            return levelList.get(num);
-        }
-
-        int getSizeParameter(int num) {
-            return sizeList.get(num);
-        }
-    }
 
     private static final CacheFactory INSTANCE = new CacheFactory();
-    private Levels levels;
-    private CacheStrategy cacheStrategy;
-
-    private CacheFactory() {
-        levels = new Levels();
-    }
 
     public static CacheFactory getInstance() {
         return INSTANCE;
-    }
-
-    public void addLevel(Level level, int maxSize) throws CacheFactoryException {
-
-        if (!(maxSize > 0)) {
-            throw new IllegalArgumentException("Level size must be more than 0");
-        }
-
-        if (level == null) {
-            throw new IllegalArgumentException("Level must be not null");
-        }
-
-        levels.addLevel(level, maxSize);
-    }
-
-    public void setCacheStrategy(CacheStrategy cacheStrategy) {
-        this.cacheStrategy = cacheStrategy;
     }
 
     public Cache getCache() throws CacheFactoryException {
@@ -72,38 +20,55 @@ public final class CacheFactory {
     }
 
     public Cache getCache(int baseSize) throws CacheFactoryException {
-        return getCache(baseSize, 10);
+        return getCache(baseSize, CacheStrategy.RANDOM);
     }
 
-    public Cache getCache(int baseSize, double multiplier) throws CacheFactoryException {
+    public Cache getCache(int baseSize, CacheStrategy cacheStrategy) throws CacheFactoryException {
+        return getCache(baseSize, cacheStrategy, 10);
+    }
+
+    public Cache getCache(int baseSize, CacheStrategy cacheStrategy, int multiplier) throws CacheFactoryException {
+        List<Level> cacheLevels = new ArrayList<>(2);
+        cacheLevels.add(Level.MEMORY);
+        cacheLevels.add(Level.FILE);
+        return getCache(baseSize, multiplier, cacheStrategy, cacheLevels);
+    }
+
+    public Cache getCache(CacheStrategy cacheStrategy, LinkedHashMap<Level, Integer> levelList) {
+        if (cacheStrategy == null) {
+            throw new IllegalArgumentException("Cache strategy must be not null");
+        }
+        if ((levelList == null)||(levelList.isEmpty())) {
+            throw new IllegalArgumentException("Cache levels must be set");
+        }
+        Iterator<Map.Entry<Level, Integer>> iterator = levelList.entrySet().iterator();
+        List<CacheLevel> cacheLevelList = new ArrayList<>(levelList.size());
+        int i = 0;
+        while(iterator.hasNext()) {
+            Map.Entry<Level, Integer> entry = iterator.next();
+            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, entry.getKey(), entry.getValue(), i));
+            i++;
+        }
+        return new Cache(cacheStrategy, cacheLevelList);
+    }
+
+    public Cache getCache(int baseSize, int multiplier, CacheStrategy cacheStrategy, List<Level> cacheLevels) throws CacheFactoryException {
         if (!(baseSize > 0)) {
             throw new IllegalArgumentException("Base size must be more than 0");
         }
         if (!(multiplier > 0)) {
             throw new IllegalArgumentException("Multiplier must be more than 0");
         }
-
         if (cacheStrategy == null) {
-            cacheStrategy = CacheStrategy.LEAST_RECENTLY_USED;
+            throw new IllegalArgumentException("Cache strategy must be not null");
         }
-
-        int levelsQuantity = levels.levelList.size();
-        List<CacheLevel> cacheLevelList;
-        if (levelsQuantity == 0) {
-            cacheLevelList = new ArrayList<>(2);
-            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.MEMORY, baseSize, 0));
-            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, Level.FILE, (int) (baseSize * multiplier), 1));
-        } else {
-            cacheLevelList = new ArrayList<>(levelsQuantity);
-            for (int i = 0; i < levelsQuantity; i++) {
-                cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, levels.getLevelParameter(i), levels.getSizeParameter(i), i));
-            }
+        if ((cacheLevels == null)||(cacheLevels.isEmpty())) {
+            throw new IllegalArgumentException("Cache levels must be set");
         }
-
+        List<CacheLevel> cacheLevelList = new ArrayList<>(cacheLevels.size());
+        for (int i = 0; i < cacheLevels.size(); i++) {
+            cacheLevelList.add(CacheLevelFactory.INSTANCE.getCacheLevel(cacheStrategy, cacheLevels.get(i), (baseSize + (baseSize * multiplier)), i));
+        }
         return new Cache(cacheStrategy, cacheLevelList);
-    }
-
-    public void clearLevels() {
-        levels.clear();
     }
 }

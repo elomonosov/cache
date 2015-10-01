@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.elomonosov.cache.CacheStrategy;
 import ru.elomonosov.cache.TestCacheData;
+import ru.elomonosov.test.Result;
 import ru.elomonosov.util.ClassNameUtil;
 
 import java.util.*;
@@ -45,10 +46,10 @@ public class CacheLevelTest {
         double onePercent = testTime / 100d;
 
 
-        StringBuilder allResult = new StringBuilder();
+        StringBuilder allResult = new StringBuilder("Cache level test \n");
         for (Result result : results) {
             result.setRelativeTime((result.getAbsoluteTime() / onePercent));
-            result.setText(result.getText() + result.relativeTime + " %");
+            result.setText(result.getText() + result.getRelativeTime() + " %");
             allResult.append(result.getText());
             allResult.append("\n");
         }
@@ -151,40 +152,6 @@ public class CacheLevelTest {
             long resultTime = System.nanoTime() - timeBefore;
             long oldResult = cacheLevelMap.get(cacheLevel);
             cacheLevelMap.put(cacheLevel, oldResult + resultTime);
-        }
-    }
-
-    static class Result {
-
-        private String text;
-
-        private long absoluteTime;
-
-        private double relativeTime;
-
-        public Result(String text, long absoluteTime) {
-            this.text = text;
-            this.absoluteTime = absoluteTime;
-        }
-
-        public long getAbsoluteTime() {
-            return absoluteTime;
-        }
-
-        public double getRelativeTime() {
-            return relativeTime;
-        }
-
-        public void setRelativeTime(double relativeTime) {
-            this.relativeTime = relativeTime;
-        }
-
-        public void setText(String text) {
-            this.text = text;
-        }
-
-        public String getText() {
-            return text;
         }
     }
 }

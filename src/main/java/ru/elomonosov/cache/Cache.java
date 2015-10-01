@@ -34,13 +34,15 @@ public final class Cache {
      * @param cacheable item that should be stored in the cache.
      * @throws CacheException if any level cannot reprocess item adding.
      */
-    public void put(Cacheable cacheable) throws CacheException {
-        logger.info("Putting item [id {}] in the cache...", cacheable.getId());
-        logger.info("Check for item with the same id...");
-        removeItem(cacheable.getId()); // remove item with the same id from the cache
-        logger.info("Adding item to cache...");
-        putByStrategy(cacheable, levelListByStrategy()); // put item in cache.
-        logger.info("Item [id{}] was added.", cacheable.getId());
+    public synchronized void put(Cacheable cacheable) throws CacheException {
+        if (cacheable != null) {
+            logger.info("Putting item [id {}] in the cache...", cacheable.getId());
+            logger.info("Check for item with the same id...");
+            removeItem(cacheable.getId()); // remove item with the same id from the cache
+            logger.info("Adding item to cache...");
+            putByStrategy(cacheable, levelListByStrategy()); // put item in cache.
+            logger.info("Item [id{}] was added.", cacheable.getId());
+        }
     }
 
     /**
@@ -54,15 +56,19 @@ public final class Cache {
         CacheLevel cacheLevel = null;
         try {
             cacheLevel = levelsByStrategy.get(0);
-            if (cacheLevel.isFull()) {                                  // if level is full, strategy defined item must be displaced by the one that need to be saved
-                Cacheable displacedData = cacheLevel.pullByStrategy(); // get the item that need to be shifted or removed
-                if (levelsByStrategy.size() > 1) {                     // if it is not the last level, shift displaced data to next level
-                    levelsByStrategy.remove(0);                        // remove level from the list of reprocessing levels
-                    putByStrategy(displacedData, levelsByStrategy);    // call this method for the list of reprocessing levels
-                    cacheLevel.put(cacheable);                         // add item to this level
+            if (cacheLevel != null) {
+                if (cacheLevel.isFull()) {                                  // if level is full, strategy defined item must be displaced by the one that need to be saved
+                    Cacheable displacedData = cacheLevel.pullByStrategy(); // get the item that need to be shifted or removed
+                    if (levelsByStrategy.size() > 1) {                     // if it is not the last level, shift displaced data to next level
+                        levelsByStrategy.remove(0);                        // remove level from the list of reprocessing levels
+                        putByStrategy(displacedData, levelsByStrategy);    // call this method for the list of reprocessing levels
+                        cacheLevel.put(cacheable);                         // add item to this level
+                    }
+                } else {
+                    cacheLevel.put(cacheable); // The simplest case. Put cached object on this level - it is not full
                 }
             } else {
-                cacheLevel.put(cacheable); // The simplest case. Put cached object on this level - it is not full
+                throw new CacheException("Cannot get level to put item on it", new NullPointerException());
             }
         } catch (CacheLevelException e) {
             throw new CacheException("Cannot put item with id = " + cacheable.getId() + " in level " + cacheLevel.getOrder(), e);
@@ -97,7 +103,7 @@ public final class Cache {
      * @return null if there is no item with the specified id in the cache.
      * @throws CacheException if any level cannot reprocess item getting.
      */
-    public Cacheable get(long id) throws CacheException {
+    public synchronized Cacheable get(long id) throws CacheException {
         int levelNum = 0;
         logger.info("Searching item [id {}]", id);
         for (CacheLevel cacheLevel : cacheLevelList) {
