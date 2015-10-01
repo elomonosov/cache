@@ -8,7 +8,7 @@ Cache provides base functions:
 1. Put item in the cache.
 2. Get item from the cache.
 
-User may declare some parameters:
+User may define few parameters:
 
 1. Cache strategy.
 2. Type of each cache level.
@@ -38,13 +38,12 @@ Id must be unique for the instance that need to be cached. It means that id must
 
 ## Cache creation
 
-    CacheFactory factory = CacheFactory.getInstance();
-    factory.addLevel(Level.MEMORY, 10);
-    factory.addLevel(Level.FILE, 100);
-    cacheFactory.setCacheStrategy(CacheStrategy.LEAST_RECENTLY_USED);
-    Cache cache = factory.getCache();
-    
-This is the example of getting 2-level cache, first in memory, second in file. In-memory level maximum size is 10 items, In-file level size is 100 items.
+This is the example of getting 2-level cache, first in memory, second in file. In-memory level maximum size is 10 items, In-file level size is 100 items
+
+    LinkedHashMap<Level, Integer> cacheLevels = new LinkedHashMap<>();
+    cacheLevels.put(Level.MEMORY, 10);
+    cacheLevels.put(Level.FILE, 100);
+    Cache cache = cacheFactory.getCache(CacheStrategy.LEAST_RECENTLY_USED, cacheLevels);
 
 ## Store item in the cache
 
@@ -104,11 +103,14 @@ Declare class that need to be stored in the cache:
 Using the cache:
 
     public static void main(String args[]) {
+    
+    
          CacheFactory factory = CacheFactory.getInstance(); // Getting the cache factory
-         factory.addLevel(Level.MEMORY, 10); // Top level is in memory, can keep 10 items.
-         factory.addLevel(Level.FILE, 100); // Second level is in file, can keep 100 items.
-         cacheFactory.setCacheStrategy(CacheStrategy.LEAST_RECENTLY_USED); // Set the cache strategy to "Least Recently Used strategy"
-         Cache cache = factory.getCache(); // Creating the cache.
+         LinkedHashMap<Level, Integer> cacheLevels = new LinkedHashMap<>();
+         cacheLevels.put(Level.MEMORY, 10); //The first level is in memory, can keep 10 items.
+         cacheLevels.put(Level.FILE, 100);  //The second level is in file system, can keep 100 items.
+         Cache cache = cacheFactory.getCache(CacheStrategy.LEAST_RECENTLY_USED, cacheLevels); // Creating the cache.
+         
          
          CachingData data1 = new CachingData(1);
          CachingData data2 = new CachingData(2);
@@ -118,7 +120,7 @@ Using the cache:
          
          cache.put(data1); // item with the id = 1 has been replaced with the new one, cache size is still 2. Item with id = 2 is the eldest now.
          
-         CachingData requested = cache.get(2); // requested contains item with id = 2 now. In cache, item with id = 1 is the eldest now.
+         CachingData requested = cache.get(2); // Variable "requested" contains item with id = 2 now. Item with id = 1 is the eldest now.
          
          CachingData requested = cache.get(3); // requested contains null.
     }
